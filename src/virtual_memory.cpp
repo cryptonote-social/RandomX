@@ -29,6 +29,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "virtual_memory.hpp"
 
 #include <stdexcept>
+#include <iostream>
 
 #if defined(_WIN32) || defined(__CYGWIN__)
 #include <windows.h>
@@ -144,10 +145,23 @@ void* allocLargePagesMemory(std::size_t bytes) {
 #elif defined(__OpenBSD__)
 	mem = MAP_FAILED; // OpenBSD does not support huge pages
 #else
-	mem = mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_POPULATE, -1, 0);
+#define MAP_HUGE_1GB    (30 << MAP_HUGE_SHIFT)
+    if (bytes >= 1073741824) {
+      mem = mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_HUGE_1GB | MAP_POPULATE, -1, 0);
+    } else {
+      mem = MAP_FAILED;
+    }
+    if (mem == MAP_FAILED) {
+      mem = mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_POPULATE, -1, 0);
+    } else {
+      std::cout << "Good news, was able to use 1gb hugepages!" << std::endl;
+    }
 #endif
-	if (mem == MAP_FAILED)
-		throw std::runtime_error("allocLargePagesMemory - mmap failed");
+	if (mem == MAP_FAILED) {
+      std::cout << "fail: " << bytes << std::endl;
+      throw std::runtime_error("allocLargePagesMemory - mmap failed");
+    }
+    std::cout << "success: " << bytes << std::endl;
 #endif
 	return mem;
 }

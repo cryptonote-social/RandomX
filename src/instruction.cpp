@@ -302,7 +302,6 @@ namespace randomx {
 
 	void Instruction::h_CBRANCH(std::ostream& os) const {
 		auto dstIndex = dst % RegistersCount;
-		auto srcIndex = src % RegistersCount;
 		os << "r" << dstIndex << ", " << (int32_t)getImm32() << ", COND " << (int)(getModCond()) << std::endl;
 	}
 
