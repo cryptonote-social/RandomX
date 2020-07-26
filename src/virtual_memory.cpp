@@ -154,14 +154,14 @@ void* allocLargePagesMemory(std::size_t bytes) {
     if (mem == MAP_FAILED) {
       mem = mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_POPULATE, -1, 0);
     } else {
-      std::cout << "Good news, was able to use 1gb hugepages!" << std::endl;
+      std::cout << "# Good news, was able to use 1gb hugepages!" << std::endl;
     }
 #endif
 	if (mem == MAP_FAILED) {
-      std::cout << "fail: " << bytes << std::endl;
+      //std::cout << "# Failed to allocate hugepages: " << bytes << std::endl;
       throw std::runtime_error("allocLargePagesMemory - mmap failed");
     }
-    std::cout << "success: " << bytes << std::endl;
+    //std::cout << "success: " << bytes << std::endl;
 #endif
 	return mem;
 }
