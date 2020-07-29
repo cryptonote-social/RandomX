@@ -28,6 +28,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "vm_compiled.hpp"
 #include "common.hpp"
+#include "intrin_portable.h"
 
 namespace randomx {
 
@@ -50,6 +51,8 @@ namespace randomx {
 	void CompiledVm<Allocator, softAes, secureJit>::run(void* seed) {
 		VmBase<Allocator, softAes>::generateProgram(seed);
 		randomx_vm::initialize();
+		mem.memory = datasetPtr->memory + datasetOffset;
+		rx_prefetch_nta(mem.memory + mem.ma);
 		if (secureJit) {
 			compiler.enableWriting();
 		}
@@ -57,7 +60,6 @@ namespace randomx {
 		if (secureJit) {
 			compiler.enableExecution();
 		}
-		mem.memory = datasetPtr->memory + datasetOffset;
 		execute();
 	}
 
