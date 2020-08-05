@@ -32,6 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstring>
 #include <vector>
 #include "common.hpp"
+#include "instruction.hpp"
 
 namespace randomx {
 
@@ -47,6 +48,7 @@ namespace randomx {
 	public:
 		JitCompilerX86();
 		~JitCompilerX86();
+
 		void generateProgram(Program&, ProgramConfiguration&);
 		void generateProgramLight(Program&, ProgramConfiguration&, uint32_t);
 		template<size_t N>
@@ -76,33 +78,44 @@ namespace randomx {
 		void generateProgramEpilogue(Program&, ProgramConfiguration&);
 		void genAddressReg(Instruction&, bool);
 		void genAddressRegDst(Instruction&);
-		void genAddressImm(Instruction&);
-		void genSIB(int scale, int index, int base);
 
-		void generateCode(Instruction&, int);
+		inline void genAddressImm(Instruction& instr) {
+		  emit32(instr.getImm32() & ScratchpadL3Mask);
+		}
+
+		inline void genSIB(int scale, int index, int base) {
+		  emitByte((scale << 6) | (index << 3) | base);
+		}
+
+		inline void generateCode(Instruction& instr, int i) {
+		  instructionOffsets.push_back(codePos);
+		  auto generator = engine[instr.opcode];
+		  (this->*generator)(instr, i);
+		}
+
 		void generateSuperscalarCode(Instruction &, std::vector<uint64_t> &);
 
-		void emitByte(uint8_t val) {
+		inline void emitByte(uint8_t val) {
 			code[codePos] = val;
 			codePos++;
 		}
 
-		void emit32(uint32_t val) {
+		inline void emit32(uint32_t val) {
 			memcpy(code + codePos, &val, sizeof val);
 			codePos += sizeof val;
 		}
 
-		void emit64(uint64_t val) {
+		inline void emit64(uint64_t val) {
 			memcpy(code + codePos, &val, sizeof val);
 			codePos += sizeof val;
 		}
 
 		template<size_t N>
-		void emit(const uint8_t (&src)[N]) {
+		inline void emit(const uint8_t (&src)[N]) {
 			emit(src, N);
 		}
 
-		void emit(const uint8_t* src, size_t count) {
+		inline void emit(const uint8_t* src, size_t count) {
 			memcpy(code + codePos, src, count);
 			codePos += count;
 		}

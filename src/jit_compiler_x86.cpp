@@ -334,12 +334,6 @@ namespace randomx {
 		emit32(epilogueOffset - codePos - 4);
 	}
 
-	void JitCompilerX86::generateCode(Instruction& instr, int i) {
-		instructionOffsets.push_back(codePos);
-		auto generator = engine[instr.opcode];
-		(this->*generator)(instr, i);
-	}
-
 	void JitCompilerX86::generateSuperscalarCode(Instruction& instr, std::vector<uint64_t> &reciprocalCache) {
 		switch ((SuperscalarInstructionType)instr.opcode)
 		{
@@ -464,10 +458,6 @@ namespace randomx {
 		}
 	}
 
-	void JitCompilerX86::genAddressImm(Instruction& instr) {
-		emit32(instr.getImm32() & ScratchpadL3Mask);
-	}
-
 	void JitCompilerX86::h_IADD_RS(Instruction& instr, int i) {
 		registerUsage[instr.dst] = i;
 		emit(REX_LEA);
@@ -493,10 +483,6 @@ namespace randomx {
 			emitByte(0x86 + 8 * instr.dst);
 			genAddressImm(instr);
 		}
-	}
-
-	void JitCompilerX86::genSIB(int scale, int index, int base) {
-		emitByte((scale << 6) | (index << 3) | base);
 	}
 
 	void JitCompilerX86::h_ISUB_R(Instruction& instr, int i) {
