@@ -73,6 +73,7 @@ namespace randomx {
 		int registerUsage[RegistersCount];
 		uint8_t* code;
 		int32_t codePos;
+		int32_t prevRoundModePos;
 
 		void generateProgramPrologue(Program&, ProgramConfiguration&);
 		void generateProgramEpilogue(Program&, ProgramConfiguration&);
