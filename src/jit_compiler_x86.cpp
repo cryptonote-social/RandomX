@@ -29,6 +29,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdexcept>
 #include <cstring>
 #include <climits>
+#include <stdio.h>
 #include "jit_compiler_x86.hpp"
 #include "jit_compiler_x86_static.hpp"
 #include "superscalar.hpp"
@@ -305,6 +306,7 @@ namespace randomx {
 
 		codePos = prologueSize;
 		prevRoundModePos = 0;
+		prevFloatOpPos = 0;
 		memcpy(code + codePos - 48, &pcfg.eMask, sizeof(pcfg.eMask));
 		memcpy(code + codePos, codeLoopLoad, loopLoadSize);
 		codePos += loopLoadSize;
@@ -691,7 +693,7 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::h_FADD_R(Instruction& instr, int i) {
-		prevRoundModePos = 0;
+		prevFloatOpPos = codePos;
 		instr.dst %= RegisterCountFlt;
 		instr.src %= RegisterCountFlt;
 		emit(REX_ADDPD);
@@ -699,7 +701,7 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::h_FADD_M(Instruction& instr, int i) {
-		prevRoundModePos = 0;
+		prevFloatOpPos = codePos;
 		instr.dst %= RegisterCountFlt;
 		genAddressReg(instr);
 		emit(REX_CVTDQ2PD_XMM12);
@@ -708,7 +710,7 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::h_FSUB_R(Instruction& instr, int i) {
-		prevRoundModePos = 0;
+		prevFloatOpPos = codePos;
 		instr.dst %= RegisterCountFlt;
 		instr.src %= RegisterCountFlt;
 		emit(REX_SUBPD);
@@ -716,6 +718,7 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::h_FSUB_M(Instruction& instr, int i) {
+		prevFloatOpPos = codePos;
 		instr.dst %= RegisterCountFlt;
 		genAddressReg(instr);
 		emit(REX_CVTDQ2PD_XMM12);
@@ -730,7 +733,7 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::h_FMUL_R(Instruction& instr, int i) {
-		prevRoundModePos = 0;
+		prevFloatOpPos = codePos;
 		instr.dst %= RegisterCountFlt;
 		instr.src %= RegisterCountFlt;
 		emit(REX_MULPD);
@@ -738,7 +741,7 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::h_FDIV_M(Instruction& instr, int i) {
-		prevRoundModePos = 0;
+		prevFloatOpPos = codePos;
 		instr.dst %= RegisterCountFlt;
 		genAddressReg(instr);
 		emit(REX_CVTDQ2PD_XMM12);
@@ -748,34 +751,37 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::h_FSQRT_R(Instruction& instr, int i) {
-		prevRoundModePos = 0;
+		prevFloatOpPos = codePos;
 		instr.dst %= RegisterCountFlt;
 		emit(SQRTPD);
 		emitByte(0xe4 + 9 * instr.dst);
 	}
 
 	void JitCompilerX86::h_CFROUND(Instruction& instr, int i) {
-		if (prevRoundModePos) {
+		if (prevRoundModePos > prevFloatOpPos) {
 			// The previous rounding mode change will have no effect because we are just changing it
-			// again before it was used, so we can turn it into a NOP.
-			memcpy(code + codePos + prevRoundModePos, NOP8, 8);
-			memcpy(code + codePos + prevRoundModePos, NOP8, 6);
+			// again before it was used, so we can turn it into a no-op.
+			memcpy(code + prevRoundModePos, NOP8, 8);
+			memcpy(code + prevRoundModePos + 8, NOP8, 8);
+			memcpy(code + prevRoundModePos + 16, NOP7, 7);
 		}
 		prevRoundModePos = codePos;
 		emit(REX_MOV_RR64);
 		emitByte(0xc0 + instr.src);
 		int rotate = (13 - (instr.getImm32() & 63)) & 63;
-		if (rotate != 0) {
-			emit(ROL_RAX);
-			emitByte(rotate);
-		}
+		//if (rotate != 0) {
+		emit(ROL_RAX);
+		emitByte(rotate);
+		//}
 		emit(AND_OR_MOV_LDMXCSR);
 	}
 
 	void JitCompilerX86::h_CBRANCH(Instruction& instr, int i) {
-		prevRoundModePos = 0;
 		int reg = instr.dst;
 		int target = registerUsage[reg] + 1;
+		if (instructionOffsets[target] < prevFloatOpPos) {
+			prevRoundModePos = 0;
+		}
 		emit(REX_ADD_I);
 		emitByte(0xc0 + reg);
 		int shift = instr.getModCond() + ConditionOffset;

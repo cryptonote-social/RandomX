@@ -74,6 +74,7 @@ namespace randomx {
 		uint8_t* code;
 		int32_t codePos;
 		int32_t prevRoundModePos;
+		int32_t prevFloatOpPos;
 
 		void generateProgramPrologue(Program&, ProgramConfiguration&);
 		void generateProgramEpilogue(Program&, ProgramConfiguration&);
