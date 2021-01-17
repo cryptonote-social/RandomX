@@ -67,14 +67,25 @@ namespace randomx {
 		void enableWriting();
 		void enableExecution();
 		void enableAll();
+
+#ifdef ENABLE_EXPERIMENTAL
+		// Instructions elided due to misc. optimizations.  Elided either means either avoided
+		// completely or later converted to no-ops.
+		int instructionsElided;
+
+		// set to true when testing/benchmarking experimental optimizations & features
+		bool experimental;
+#endif
+
 	private:
 		static InstructionGeneratorX86 engine[256];
 		std::vector<int32_t> instructionOffsets;
-		int registerUsage[RegistersCount];
+		int registerModifiedAt[RegistersCount];
+		int32_t prevRoundModeAt;
+		int32_t prevFloatOpAt;
+
 		uint8_t* code;
 		int32_t codePos;
-		int32_t prevRoundModePos;
-		int32_t prevFloatOpPos;
 
 		void generateProgramPrologue(Program&, ProgramConfiguration&);
 		void generateProgramEpilogue(Program&, ProgramConfiguration&);
@@ -98,8 +109,7 @@ namespace randomx {
 		void generateSuperscalarCode(Instruction &, std::vector<uint64_t> &);
 
 		inline void emitByte(uint8_t val) {
-			code[codePos] = val;
-			codePos++;
+			code[codePos++] = val;
 		}
 
 		inline void emit32(uint32_t val) {

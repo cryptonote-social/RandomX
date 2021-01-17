@@ -43,6 +43,9 @@ public:
 	virtual void setCache(randomx_cache* cache) { }
 	virtual void initScratchpad(void* seed) = 0;
 	virtual void run(void* seed) = 0;
+
+	virtual void setExperimental(bool exp) {};
+
 	void resetRoundingMode();
 	randomx::RegisterFile *getRegisterFile() {
 		return &reg;

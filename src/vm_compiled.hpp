@@ -52,6 +52,11 @@ namespace randomx {
 		CompiledVm();
 		void setDataset(randomx_dataset* dataset) override;
 		void run(void* seed) override;
+		void setExperimental(bool exp) override {
+#ifdef ENABLE_EXPERIMENTAL
+			compiler.experimental = exp;
+#endif
+		}
 
 		using VmBase<Allocator, softAes>::mem;
 		using VmBase<Allocator, softAes>::program;
