@@ -81,8 +81,8 @@ namespace randomx {
 		static InstructionGeneratorX86 engine[256];
 		std::vector<int32_t> instructionOffsets;
 		int registerModifiedAt[RegistersCount];
-		int32_t prevRoundModeAt;
-		int32_t prevFloatOpAt;
+		int prevRoundModeAt;
+		int prevFloatOpAt;
 
 		uint8_t* code;
 		int32_t codePos;
