@@ -216,15 +216,15 @@ namespace randomx {
 
 	static const uint8_t* NOPX[] = { NOP1, NOP2, NOP3, NOP4, NOP5, NOP6, NOP7, NOP8, NOP9 };
 
-	size_t JitCompilerX86::getCodeSize() {
+	size_t JitCompilerX86::getCodeSize() const {
 		return CodeSize;
 	}
 
-	JitCompilerX86::JitCompilerX86() {
+	JitCompilerX86::JitCompilerX86() : code((uint8_t*)allocMemoryPages(CodeSize)) {
 #ifdef ENABLE_EXPERIMENTAL
 		experimental = false;
 #endif
-		code = (uint8_t*)allocMemoryPages(CodeSize);
+		instructionOffsets.reserve(RANDOMX_PROGRAM_SIZE);
 		memcpy(code, codePrologue, prologueSize);
 		memcpy(code + epilogueOffset, codeEpilogue, epilogueSize);
 	}
@@ -320,7 +320,7 @@ namespace randomx {
 			Instruction& instr = prog(i);
 			instr.src %= RegistersCount;
 			instr.dst %= RegistersCount;
-			generateCode(instr, i);
+			generateCode(prog(i), i);
 		}
 		emit(REX_MOV_RR);
 		emitByte(0xc0 + pcfg.readReg2);
@@ -846,7 +846,7 @@ namespace randomx {
 #include "instruction_weights.hpp"
 #define INST_HANDLE(x) REPN(&JitCompilerX86::h_##x, WT(x))
 
-	InstructionGeneratorX86 JitCompilerX86::engine[256] = {
+	const InstructionGeneratorX86 JitCompilerX86::engine[256] = {
 		INST_HANDLE(IADD_RS)
 		INST_HANDLE(IADD_M)
 		INST_HANDLE(ISUB_R)

@@ -53,7 +53,7 @@ namespace randomx {
 		uint64_t getEntropy(int i) {
 			return load64(&entropyBuffer[i]);
 		}
-		uint32_t getSize() {
+		constexpr uint32_t getSize() {
 			return RANDOMX_PROGRAM_SIZE;
 		}
 	private:

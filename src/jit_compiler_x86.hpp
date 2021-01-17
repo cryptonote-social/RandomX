@@ -54,16 +54,16 @@ namespace randomx {
 		template<size_t N>
 		void generateSuperscalarHash(SuperscalarProgram (&programs)[N], std::vector<uint64_t> &);
 		void generateDatasetInitCode();
-		ProgramFunc* getProgramFunc() {
+		ProgramFunc* getProgramFunc() const {
 			return (ProgramFunc*)code;
 		}
-		DatasetInitFunc* getDatasetInitFunc() {
+		DatasetInitFunc* getDatasetInitFunc() const {
 			return (DatasetInitFunc*)code;
 		}
-		uint8_t* getCode() {
+		const uint8_t* getCode() const {
 			return code;
 		}
-		size_t getCodeSize();
+		size_t getCodeSize() const;
 		void enableWriting();
 		void enableExecution();
 		void enableAll();
@@ -78,13 +78,13 @@ namespace randomx {
 #endif
 
 	private:
-		static InstructionGeneratorX86 engine[256];
+		static const InstructionGeneratorX86 engine[256];
 		std::vector<int32_t> instructionOffsets;
 		int registerModifiedAt[RegistersCount];
 		int prevRoundModeAt;
 		int prevFloatOpAt;
 
-		uint8_t* code;
+		uint8_t* const code;
 		int32_t codePos;
 
 		void generateProgramPrologue(Program&, ProgramConfiguration&);
