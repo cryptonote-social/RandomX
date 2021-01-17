@@ -273,7 +273,7 @@ namespace randomx {
 		for (unsigned j = 0; j < N; ++j) {
 			SuperscalarProgram& prog = programs[j];
 			for (unsigned i = 0; i < prog.getSize(); ++i) {
-				Instruction& instr = prog(i);
+				const Instruction& instr = prog(i);
 				generateSuperscalarCode(instr, reciprocalCache);
 			}
 			emit(codeShhLoad, codeSshLoadSize);
@@ -284,7 +284,7 @@ namespace randomx {
 #ifdef RANDOMX_ALIGN
 				int align = (codePos % 16);
 				while (align != 0) {
-					int nopSize = 16 - align;
+					const int nopSize = 16 - align;
 					if (nopSize > 9) nopSize = 9;
 					emit(NOPX[nopSize - 1], nopSize);
 					align = (codePos % 16);
@@ -320,7 +320,7 @@ namespace randomx {
 			Instruction& instr = prog(i);
 			instr.src %= RegistersCount;
 			instr.dst %= RegistersCount;
-			generateCode(prog(i), i);
+			generateCode(instr, i);
 		}
 		emit(REX_MOV_RR);
 		emitByte(0xc0 + pcfg.readReg2);
@@ -346,7 +346,7 @@ namespace randomx {
 		emit32(epilogueOffset - codePos - 4);
 	}
 
-	void JitCompilerX86::generateSuperscalarCode(Instruction& instr, std::vector<uint64_t> &reciprocalCache) {
+	void JitCompilerX86::generateSuperscalarCode(const Instruction& instr, std::vector<uint64_t> &reciprocalCache) {
 		switch ((SuperscalarInstructionType)instr.opcode)
 		{
 		case randomx::SuperscalarInstructionType::ISUB_R:
@@ -440,7 +440,7 @@ namespace randomx {
 		}
 	}
 
-	inline void JitCompilerX86::genAddressReg(Instruction& instr, bool rax = true) {
+	inline void JitCompilerX86::genAddressReg(const Instruction& instr, bool rax = true) {
 		emit(LEA_32);
 		emitByte(0x80 + instr.src + (rax ? 0 : 8));
 		if (instr.src == RegisterNeedsSib) {
@@ -454,7 +454,7 @@ namespace randomx {
 		emit32(instr.getModMem() ? ScratchpadL1Mask : ScratchpadL2Mask);
 	}
 
-	inline void JitCompilerX86::genAddressRegDst(Instruction& instr) {
+	inline void JitCompilerX86::genAddressRegDst(const Instruction& instr) {
 		emit(LEA_32);
 		emitByte(0x80 + instr.dst);
 		if (instr.dst == RegisterNeedsSib) {
@@ -470,7 +470,7 @@ namespace randomx {
 		}
 	}
 
-	void JitCompilerX86::h_IADD_RS(Instruction& instr, int i) {
+	void JitCompilerX86::h_IADD_RS(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		emit(REX_LEA);
 		if (instr.dst == RegisterNeedsDisplacement)
@@ -482,7 +482,7 @@ namespace randomx {
 			emit32(instr.getImm32());
 	}
 
-	void JitCompilerX86::h_IADD_M(Instruction& instr, int i) {
+	void JitCompilerX86::h_IADD_M(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		if (instr.src != instr.dst) {
 			genAddressReg(instr);
@@ -497,7 +497,7 @@ namespace randomx {
 		}
 	}
 
-	void JitCompilerX86::h_ISUB_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_ISUB_R(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		if (instr.src != instr.dst) {
 			emit(REX_SUB_RR);
@@ -510,7 +510,7 @@ namespace randomx {
 		}
 	}
 
-	void JitCompilerX86::h_ISUB_M(Instruction& instr, int i) {
+	void JitCompilerX86::h_ISUB_M(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		if (instr.src != instr.dst) {
 			genAddressReg(instr);
@@ -525,7 +525,7 @@ namespace randomx {
 		}
 	}
 
-	void JitCompilerX86::h_IMUL_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_IMUL_R(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		if (instr.src != instr.dst) {
 			emit(REX_IMUL_RR);
@@ -538,7 +538,7 @@ namespace randomx {
 		}
 	}
 
-	void JitCompilerX86::h_IMUL_M(Instruction& instr, int i) {
+	void JitCompilerX86::h_IMUL_M(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		if (instr.src != instr.dst) {
 			genAddressReg(instr);
@@ -553,7 +553,7 @@ namespace randomx {
 		}
 	}
 
-	void JitCompilerX86::h_IMULH_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_IMULH_R(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		emit(REX_MOV_RR64);
 		emitByte(0xc0 + instr.dst);
@@ -563,7 +563,7 @@ namespace randomx {
 		emitByte(0xc2 + 8 * instr.dst);
 	}
 
-	void JitCompilerX86::h_IMULH_M(Instruction& instr, int i) {
+	void JitCompilerX86::h_IMULH_M(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		if (instr.src != instr.dst) {
 			genAddressReg(instr, false);
@@ -582,7 +582,7 @@ namespace randomx {
 		emitByte(0xc2 + 8 * instr.dst);
 	}
 
-	void JitCompilerX86::h_ISMULH_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_ISMULH_R(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		emit(REX_MOV_RR64);
 		emitByte(0xc0 + instr.dst);
@@ -592,7 +592,7 @@ namespace randomx {
 		emitByte(0xc2 + 8 * instr.dst);
 	}
 
-	void JitCompilerX86::h_ISMULH_M(Instruction& instr, int i) {
+	void JitCompilerX86::h_ISMULH_M(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		if (instr.src != instr.dst) {
 			genAddressReg(instr, false);
@@ -611,7 +611,7 @@ namespace randomx {
 		emitByte(0xc2 + 8 * instr.dst);
 	}
 
-	void JitCompilerX86::h_IMUL_RCP(Instruction& instr, int i) {
+	void JitCompilerX86::h_IMUL_RCP(const Instruction& instr, int i) {
 		uint64_t divisor = instr.getImm32();
 		if (!isZeroOrPowerOf2(divisor)) {
 			registerModifiedAt[instr.dst] = i;
@@ -622,13 +622,13 @@ namespace randomx {
 		}
 	}
 
-	void JitCompilerX86::h_INEG_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_INEG_R(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		emit(REX_NEG);
 		emitByte(0xd8 + instr.dst);
 	}
 
-	void JitCompilerX86::h_IXOR_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_IXOR_R(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		if (instr.src != instr.dst) {
 			emit(REX_XOR_RR);
@@ -641,7 +641,7 @@ namespace randomx {
 		}
 	}
 
-	void JitCompilerX86::h_IXOR_M(Instruction& instr, int i) {
+	void JitCompilerX86::h_IXOR_M(const Instruction& instr, int i) {
 		registerModifiedAt[instr.dst] = i;
 		if (instr.src != instr.dst) {
 			genAddressReg(instr);
@@ -656,7 +656,7 @@ namespace randomx {
 		}
 	}
 
-	void JitCompilerX86::h_IROR_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_IROR_R(const Instruction& instr, int i) {
 		// we must mark the registerModified bit even if we elide, or branching offsets will be
 		// computed incorrectly.
 		registerModifiedAt[instr.dst] = i;
@@ -667,7 +667,7 @@ namespace randomx {
 			emitByte(0xc8 + instr.dst);
 			return;
 		}
-		int amt = instr.getImm32() & 63;
+		const int amt = instr.getImm32() & 63;
 		if (amt == 0) {
 #ifdef ENABLE_EXPERIMENTAL
 			instructionsElided++;
@@ -679,19 +679,18 @@ namespace randomx {
 		emitByte(amt);
 	}
 
-	void JitCompilerX86::h_IROL_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_IROL_R(const Instruction& instr, int i) {
 		// we must mark the registerModified bit even if we elide, or branching offsets will be
 		// computed incorrectly.
 		registerModifiedAt[instr.dst] = i;
 		if (instr.src != instr.dst) {
-			registerModifiedAt[instr.dst] = i;
 			emit(REX_MOV_RR);
 			emitByte(0xc8 + instr.src);
 			emit(REX_ROT_CL);
 			emitByte(0xc0 + instr.dst);
 			return;
 		}
-		int amt = instr.getImm32() & 63;
+		const int amt = instr.getImm32() & 63;
 		if (amt == 0) {
 #ifdef ENABLE_EXPERIMENTAL
 			instructionsElided++;
@@ -703,7 +702,7 @@ namespace randomx {
 		emitByte(amt);
 	}
 
-	void JitCompilerX86::h_ISWAP_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_ISWAP_R(const Instruction& instr, int i) {
 		if (instr.src == instr.dst) return;
 		registerModifiedAt[instr.dst] = i;
 		registerModifiedAt[instr.src] = i;
@@ -712,77 +711,66 @@ namespace randomx {
 
 	}
 
-	void JitCompilerX86::h_FSWAP_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_FSWAP_R(const Instruction& instr, int i) {
 		emit(SHUFPD);
 		emitByte(0xc0 + 9 * instr.dst);
 		emitByte(1);
 	}
 
-	void JitCompilerX86::h_FADD_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_FADD_R(const Instruction& instr, int i) {
 		prevFloatOpAt = i;
-		instr.dst %= RegisterCountFlt;
-		instr.src %= RegisterCountFlt;
 		emit(REX_ADDPD);
-		emitByte(0xc0 + instr.src + 8 * instr.dst);
+		emitByte(0xc0 + (instr.src % RegisterCountFlt) + 8 * (instr.dst % RegisterCountFlt));
 	}
 
-	void JitCompilerX86::h_FADD_M(Instruction& instr, int i) {
+	void JitCompilerX86::h_FADD_M(const Instruction& instr, int i) {
 		prevFloatOpAt = i;
-		instr.dst %= RegisterCountFlt;
 		genAddressReg(instr);
 		emit(REX_CVTDQ2PD_XMM12);
 		emit(REX_ADDPD);
-		emitByte(0xc4 + 8 * instr.dst);
+		emitByte(0xc4 + 8 * (instr.dst % RegisterCountFlt));
 	}
 
-	void JitCompilerX86::h_FSUB_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_FSUB_R(const Instruction& instr, int i) {
 		prevFloatOpAt = i;
-		instr.dst %= RegisterCountFlt;
-		instr.src %= RegisterCountFlt;
 		emit(REX_SUBPD);
-		emitByte(0xc0 + instr.src + 8 * instr.dst);
+		emitByte(0xc0 + (instr.src % RegisterCountFlt) + 8 * (instr.dst % RegisterCountFlt));
 	}
 
-	void JitCompilerX86::h_FSUB_M(Instruction& instr, int i) {
+	void JitCompilerX86::h_FSUB_M(const Instruction& instr, int i) {
 		prevFloatOpAt = i;
-		instr.dst %= RegisterCountFlt;
 		genAddressReg(instr);
 		emit(REX_CVTDQ2PD_XMM12);
 		emit(REX_SUBPD);
-		emitByte(0xc4 + 8 * instr.dst);
+		emitByte(0xc4 + 8 * (instr.dst % RegisterCountFlt));
 	}
 
-	void JitCompilerX86::h_FSCAL_R(Instruction& instr, int i) {
-		instr.dst %= RegisterCountFlt;
+	void JitCompilerX86::h_FSCAL_R(const Instruction& instr, int i) {
 		emit(REX_XORPS);
-		emitByte(0xc7 + 8 * instr.dst);
+		emitByte(0xc7 + 8 * (instr.dst % RegisterCountFlt));
 	}
 
-	void JitCompilerX86::h_FMUL_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_FMUL_R(const Instruction& instr, int i) {
 		prevFloatOpAt = i;
-		instr.dst %= RegisterCountFlt;
-		instr.src %= RegisterCountFlt;
 		emit(REX_MULPD);
-		emitByte(0xe0 + instr.src + 8 * instr.dst);
+		emitByte(0xe0 + (instr.src % RegisterCountFlt) + 8 * (instr.dst % RegisterCountFlt));
 	}
 
-	void JitCompilerX86::h_FDIV_M(Instruction& instr, int i) {
+	void JitCompilerX86::h_FDIV_M(const Instruction& instr, int i) {
 		prevFloatOpAt = i;
-		instr.dst %= RegisterCountFlt;
 		genAddressReg(instr);
 		emit(REX_CVTDQ2PD_XMM12);
 		emit(REX_ANDPS_XMM12_DIVPD);
-		emitByte(0xe4 + 8 * instr.dst);
+		emitByte(0xe4 + 8 * (instr.dst % RegisterCountFlt));
 	}
 
-	void JitCompilerX86::h_FSQRT_R(Instruction& instr, int i) {
+	void JitCompilerX86::h_FSQRT_R(const Instruction& instr, int i) {
 		prevFloatOpAt = i;
-		instr.dst %= RegisterCountFlt;
 		emit(SQRTPD);
-		emitByte(0xe4 + 9 * instr.dst);
+		emitByte(0xe4 + 9 * (instr.dst % RegisterCountFlt));
 	}
 
-	void JitCompilerX86::h_CFROUND(Instruction& instr, int i) {
+	void JitCompilerX86::h_CFROUND(const Instruction& instr, int i) {
 		if (prevRoundModeAt > prevFloatOpAt) {
 			// The previous rounding mode change will have no effect because we are just changing it
 			// again before it was used, so we can turn it into a no-op.
@@ -798,7 +786,7 @@ namespace randomx {
 		emit(REX_MOV_RR64);
 		emitByte(0xc0 + instr.src);
 		// The number 13 below is due to the bits of interest in MXCSR register being at offset 13
-		int rotate = (13 - (instr.getImm32() & 63)) & 63;
+		const int rotate = (13 - (instr.getImm32() & 63)) & 63;
 		if (rotate != 0) {
 			emit(ROL_RAX);
 			emitByte(rotate);
@@ -808,15 +796,15 @@ namespace randomx {
 		emit(AND_OR_MOV_LDMXCSR);
 	}
 
-	void JitCompilerX86::h_CBRANCH(Instruction& instr, int i) {
-		int reg = instr.dst;
-		int target = registerModifiedAt[reg] + 1;
+	void JitCompilerX86::h_CBRANCH(const Instruction& instr, int i) {
+		const auto reg = instr.dst;
+		const int target = registerModifiedAt[reg] + 1;
 		if (target <= prevFloatOpAt) {
 			prevRoundModeAt = -1;
 		}
 		emit(REX_ADD_I);
 		emitByte(0xc0 + reg);
-		int shift = instr.getModCond() + ConditionOffset;
+		const int shift = instr.getModCond() + ConditionOffset;
 		uint32_t imm = instr.getImm32() | (1UL << shift);
 		if (ConditionOffset > 0 || shift > 0)
 			imm &= ~(1UL << (shift - 1));
@@ -832,14 +820,14 @@ namespace randomx {
 		std::fill(registerModifiedAt, registerModifiedAt + RegistersCount, i);
 	}
 
-	void JitCompilerX86::h_ISTORE(Instruction& instr, int i) {
+	void JitCompilerX86::h_ISTORE(const Instruction& instr, int i) {
 		genAddressRegDst(instr);
 		emit(REX_MOV_MR);
 		emitByte(0x04 + 8 * instr.src);
 		emitByte(0x06);
 	}
 
-	void JitCompilerX86::h_NOP(Instruction& instr, int i) {
+	void JitCompilerX86::h_NOP(const Instruction& instr, int i) {
 		emit(NOP1);
 	}
 
