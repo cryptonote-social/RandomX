@@ -43,6 +43,9 @@ namespace randomx {
 
 	class Program {
 	public:
+		const Instruction& operator()(int pc) const {
+			return programBuffer[pc];
+		}
 		Instruction& operator()(int pc) {
 			return programBuffer[pc];
 		}

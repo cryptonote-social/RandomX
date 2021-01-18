@@ -49,10 +49,10 @@ namespace randomx {
 		JitCompilerX86();
 		~JitCompilerX86();
 
-		void generateProgram(Program&, ProgramConfiguration&);
-		void generateProgramLight(Program&, ProgramConfiguration&, uint32_t);
+		void generateProgram(const Program&, const ProgramConfiguration&);
+		void generateProgramLight(const Program&, const ProgramConfiguration&, uint32_t);
 		template<size_t N>
-		void generateSuperscalarHash(SuperscalarProgram (&programs)[N], std::vector<uint64_t> &);
+		void generateSuperscalarHash(SuperscalarProgram (&programs)[N], const std::vector<uint64_t> &);
 		void generateDatasetInitCode();
 		ProgramFunc* getProgramFunc() const {
 			return (ProgramFunc*)code;
@@ -87,10 +87,9 @@ namespace randomx {
 		uint8_t* const code;
 		int32_t codePos;
 
-		void generateProgramPrologue(Program&, ProgramConfiguration&);
-		void generateProgramEpilogue(Program&, ProgramConfiguration&);
-		void genAddressReg(const Instruction&, bool);
-		void genAddressRegDst(const Instruction&);
+		void generateProgramPrologue(const Program&, const ProgramConfiguration&);
+		void generateProgramEpilogue(const Program&, const ProgramConfiguration&);
+		void genAddressRegRax(const Instruction&, uint8_t reg);
 
 		inline void genAddressImm(const Instruction& instr) {
 		  emit32(instr.getImm32() & ScratchpadL3Mask);
@@ -106,7 +105,7 @@ namespace randomx {
 		  (this->*generator)(instr, i);
 		}
 
-		void generateSuperscalarCode(const Instruction&, std::vector<uint64_t> &);
+		void generateSuperscalarCode(const Instruction&, const std::vector<uint64_t> &);
 
 		inline void emitByte(uint8_t val) {
 			code[codePos++] = val;
