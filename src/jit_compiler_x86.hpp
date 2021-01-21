@@ -34,6 +34,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common.hpp"
 #include "instruction.hpp"
 
+//#define ENABLE_EXPERIMENTAL 1
+
 namespace randomx {
 
 	class Program;
@@ -79,13 +81,17 @@ namespace randomx {
 
 	private:
 		static const InstructionGeneratorX86 engine[256];
-		std::vector<int32_t> instructionOffsets;
+		uint8_t* instructionOffsets[RANDOMX_PROGRAM_SIZE];
 		int registerModifiedAt[RegistersCount];
+
+#ifdef ENABLE_EXPERIMENTAL
 		int prevRoundModeAt;
+		uint8_t prevRoundReg;
 		int prevFloatOpAt;
+#endif
 
 		uint8_t* const code;
-		int32_t codePos;
+		uint8_t* codePos;
 
 		void generateProgramPrologue(const Program&, const ProgramConfiguration&);
 		void generateProgramEpilogue(const Program&, const ProgramConfiguration&);
@@ -100,24 +106,24 @@ namespace randomx {
 		}
 
 		inline void generateCode(const Instruction& instr, int i) {
-		  instructionOffsets.push_back(codePos);
-		  auto generator = engine[instr.opcode];
-		  (this->*generator)(instr, i);
+			instructionOffsets[i] = codePos;
+			auto generator = engine[instr.opcode];
+			(this->*generator)(instr, i);
 		}
 
 		void generateSuperscalarCode(const Instruction&, const std::vector<uint64_t> &);
 
 		inline void emitByte(uint8_t val) {
-			code[codePos++] = val;
+			*codePos++ = val;
 		}
 
 		inline void emit32(uint32_t val) {
-			memcpy(code + codePos, &val, sizeof val);
+			memcpy(codePos, &val, sizeof val);
 			codePos += sizeof val;
 		}
 
 		inline void emit64(uint64_t val) {
-			memcpy(code + codePos, &val, sizeof val);
+			memcpy(codePos, &val, sizeof val);
 			codePos += sizeof val;
 		}
 
@@ -127,7 +133,7 @@ namespace randomx {
 		}
 
 		inline void emit(const uint8_t* src, size_t count) {
-			memcpy(code + codePos, src, count);
+			memcpy(codePos, src, count);
 			codePos += count;
 		}
 

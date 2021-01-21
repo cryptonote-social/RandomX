@@ -152,7 +152,6 @@ namespace randomx {
 	static const uint8_t AND_ECX_I[] = { 0x81, 0xe1 };
 	static const uint8_t ADD_RAX_RCX[] = { 0x48, 0x01, 0xC8 };
 	static const uint8_t SAR_RAX_I8[] = { 0x48, 0xC1, 0xF8 };
-	static const uint8_t NEG_RAX[] = { 0x48, 0xF7, 0xD8 };
 	static const uint8_t ADD_R_RAX[] = { 0x4C, 0x03 };
 	static const uint8_t XOR_EAX_EAX[] = { 0x33, 0xC0 };
 	static const uint8_t ADD_RDX_R[] = { 0x4c, 0x01 };
@@ -184,8 +183,7 @@ namespace randomx {
 	static const uint8_t MOVAPD[] = { 0x66, 0x0f, 0x29 };
 	static const uint8_t REX_MOV_MR[] = { 0x4c, 0x89 };
 	static const uint8_t REX_XOR_EAX[] = { 0x41, 0x33 };
-	static const uint8_t SUB_EBX[] = { 0x83, 0xEB, 0x01 };
-	static const uint8_t JNZ[] = { 0x0f, 0x85 };
+	static const uint8_t SUB_EBX_JNZ[] = { 0x83, 0xEB, 0x01, 0x0f, 0x85 };
 	static const uint8_t JMP = 0xe9;
 	static const uint8_t REX_XOR_RAX_R64[] = { 0x49, 0x33 };
 	static const uint8_t REX_XCHG[] = { 0x4d, 0x87 };
@@ -199,6 +197,7 @@ namespace randomx {
 	static const uint8_t REX_ADD_I[] = { 0x49, 0x81 };
 	static const uint8_t REX_TEST[] = { 0x49, 0xF7 };
 	static const uint8_t JZ[] = { 0x0f, 0x84 };
+	static const uint8_t SHORT_JZ = 0x74;
 	static const uint8_t RET = 0xc3;
 	static const uint8_t LEA_32[] = { 0x41, 0x8d };
 	static const uint8_t MOVNTI[] = { 0x4c, 0x0f, 0xc3 };
@@ -224,8 +223,8 @@ namespace randomx {
 #ifdef ENABLE_EXPERIMENTAL
 		experimental = false;
 #endif
-		instructionOffsets.reserve(RANDOMX_PROGRAM_SIZE);
 		memcpy(code, codePrologue, prologueSize);
+		memcpy(code + prologueSize, codeLoopLoad, loopLoadSize);
 		memcpy(code + epilogueOffset, codeEpilogue, epilogueSize);
 	}
 
@@ -250,7 +249,7 @@ namespace randomx {
 		instructionsElided = 0;
 #endif
 		generateProgramPrologue(prog, pcfg);
-		memcpy(code + codePos, codeReadDataset, readDatasetSize);
+		memcpy(codePos, codeReadDataset, readDatasetSize);
 		codePos += readDatasetSize;
 		generateProgramEpilogue(prog, pcfg);
 	}
@@ -264,7 +263,7 @@ namespace randomx {
 		emit(ADD_EBX_I);
 		emit32(datasetOffset / CacheLineSize);
 		emitByte(CALL);
-		emit32(superScalarHashOffset - (codePos + 4));
+		emit32(superScalarHashOffset - ((codePos - code) + 4));
 		emit(codeReadDatasetLightSshFin, readDatasetLightFinSize);
 		generateProgramEpilogue(prog, pcfg);
 	}
@@ -274,10 +273,10 @@ namespace randomx {
 		SuperscalarProgram(&programs)[N],
 		const std::vector<uint64_t> &reciprocalCache) {
 		memcpy(code + superScalarHashOffset, codeShhInit, codeSshInitSize);
-		codePos = superScalarHashOffset + codeSshInitSize;
-		for (unsigned j = 0; j < N; ++j) {
+		codePos = code + superScalarHashOffset + codeSshInitSize;
+		for (int j = 0; j < N; ++j) {
 			SuperscalarProgram& prog = programs[j];
-			for (unsigned i = 0; i < prog.getSize(); ++i) {
+			for (int i = 0; i < prog.getSize(); ++i) {
 				generateSuperscalarCode(prog(i), reciprocalCache);
 			}
 			emit(codeShhLoad, codeSshLoadSize);
@@ -309,20 +308,18 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::generateProgramPrologue(const Program& prog, const ProgramConfiguration& pcfg) {
-		instructionOffsets.clear();
 		std::fill(registerModifiedAt, registerModifiedAt + RegistersCount, -1);
-
-		codePos = ((uint8_t*)randomx_program_prologue_first_load) - ((uint8_t*)randomx_program_prologue);
-		code[codePos + sizeof(REX_XOR_RAX_R64)] = 0xc0 + pcfg.readReg0;
-		code[codePos + sizeof(REX_XOR_RAX_R64) * 2 + 1] = 0xc0 + pcfg.readReg1;
-
-		codePos = prologueSize;
+#ifdef ENABLE_EXPERIMENTAL
 		prevRoundModeAt = -1;
 		prevFloatOpAt = -1;
-		memcpy(code + codePos - 48, &pcfg.eMask, sizeof(pcfg.eMask));
-		memcpy(code + codePos, codeLoopLoad, loopLoadSize);
-		codePos += loopLoadSize;
-		for (unsigned i = 0; i < prog.getSize(); ++i) {
+#endif
+		codePos = code + (((uint8_t*)randomx_program_prologue_first_load) - ((uint8_t* const)randomx_program_prologue));
+		*(codePos + sizeof(REX_XOR_RAX_R64)) = 0xc0 + pcfg.readReg0;
+		*(codePos + sizeof(REX_XOR_RAX_R64) * 2 + 1) = 0xc0 + pcfg.readReg1;
+
+		memcpy(code + prologueSize - 48, &pcfg.eMask, sizeof(pcfg.eMask));
+		codePos = code + prologueSize + loopLoadSize;
+		for (int i = 0; i < prog.getSize(); ++i) {
 			generateCode(prog(i), i);
 		}
 		emit(REX_MOV_RR);
@@ -340,13 +337,12 @@ namespace randomx {
 			(const uint8_t*)&randomx_prefetch_scratchpad,
 			((uint8_t*)&randomx_prefetch_scratchpad_end) - ((uint8_t*)&randomx_prefetch_scratchpad)
 		);
-		memcpy(code + codePos, codeLoopStore, loopStoreSize);
+		memcpy(codePos, codeLoopStore, loopStoreSize);
 		codePos += loopStoreSize;
-		emit(SUB_EBX);
-		emit(JNZ);
-		emit32(prologueSize - codePos - 4);
+		emit(SUB_EBX_JNZ);
+		emit32(prologueSize - (codePos - code) - 4);
 		emitByte(JMP);
-		emit32(epilogueOffset - codePos - 4);
+		emit32(epilogueOffset - (codePos - code) - 4);
 	}
 
 	void JitCompilerX86::generateSuperscalarCode(const Instruction& instr, const std::vector<uint64_t> &reciprocalCache) {
@@ -747,13 +743,17 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::h_FADD_R(const Instruction& instr, int i) {
+#ifdef ENABLE_EXPERIMENTAL
 		prevFloatOpAt = i;
+#endif
 		emit(REX_ADDPD);
 		emitByte(0xc0 + (instr.src % RegisterCountFlt) + 8 * (instr.dst % RegisterCountFlt));
 	}
 
 	void JitCompilerX86::h_FADD_M(const Instruction& instr, int i) {
+#ifdef ENABLE_EXPERIMENTAL
 		prevFloatOpAt = i;
+#endif
 		genAddressRegRax(instr, instr.src % RegistersCount);
 		emit(REX_CVTDQ2PD_XMM12);
 		emit(REX_ADDPD);
@@ -761,13 +761,17 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::h_FSUB_R(const Instruction& instr, int i) {
+#ifdef ENABLE_EXPERIMENTAL
 		prevFloatOpAt = i;
+#endif
 		emit(REX_SUBPD);
 		emitByte(0xc0 + (instr.src % RegisterCountFlt) + 8 * (instr.dst % RegisterCountFlt));
 	}
 
 	void JitCompilerX86::h_FSUB_M(const Instruction& instr, int i) {
+#ifdef ENABLE_EXPERIMENTAL
 		prevFloatOpAt = i;
+#endif
 		genAddressRegRax(instr, instr.src % RegistersCount);
 		emit(REX_CVTDQ2PD_XMM12);
 		emit(REX_SUBPD);
@@ -780,13 +784,17 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::h_FMUL_R(const Instruction& instr, int i) {
+#ifdef ENABLE_EXPERIMENTAL
 		prevFloatOpAt = i;
+#endif
 		emit(REX_MULPD);
 		emitByte(0xe0 + (instr.src % RegisterCountFlt) + 8 * (instr.dst % RegisterCountFlt));
 	}
 
 	void JitCompilerX86::h_FDIV_M(const Instruction& instr, int i) {
+#ifdef ENABLE_EXPERIMENTAL
 		prevFloatOpAt = i;
+#endif
 		genAddressRegRax(instr, instr.src % RegistersCount);
 		emit(REX_CVTDQ2PD_XMM12);
 		emit(REX_ANDPS_XMM12_DIVPD);
@@ -794,59 +802,85 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::h_FSQRT_R(const Instruction& instr, int i) {
+#ifdef ENABLE_EXPERIMENTAL
 		prevFloatOpAt = i;
+#endif
 		emit(SQRTPD);
 		emitByte(0xe4 + 9 * (instr.dst % RegisterCountFlt));
 	}
 
 	void JitCompilerX86::h_CFROUND(const Instruction& instr, int i) {
+		auto src = instr.src % RegistersCount;
+#ifdef ENABLE_EXPERIMENTAL
 		if (prevRoundModeAt > prevFloatOpAt) {
 			// The previous rounding mode change will have no effect because we are just changing it
 			// again before it was used, so we can turn it into a no-op.
-			uint8_t* code_loc = code + instructionOffsets[prevRoundModeAt];
+			uint8_t* code_loc = instructionOffsets[prevRoundModeAt];
 			memcpy(code_loc, NOP8, 8);
 			memcpy(code_loc + 8, NOP8, 8);
 			memcpy(code_loc + 16, NOP7, 7);
-#ifdef ENABLE_EXPERIMENTAL
 			instructionsElided++;
-#endif
 		}
 		prevRoundModeAt = i;
+		prevRoundReg = src;
+#endif
 		emit(REX_MOV_RR64);
-		emitByte(0xc0 + (instr.src % RegistersCount));
+		emitByte(0xc0 + src);
 		// The number 13 below is due to the bits of interest in MXCSR register being at offset 13
 		const int rotate = (13 - (instr.getImm32() & 63)) & 63;
 		if (rotate != 0) {
 			emit(ROL_RAX);
 			emitByte(rotate);
-		} else  {
+		}
+#ifdef ENABLE_EXPERIMENTAL
+		else  {
 			emit(NOP4); // keeps the compilation length fixed to 23 bytes to simplify eliding.
 		}
+#endif
 		emit(AND_OR_MOV_LDMXCSR);
 	}
 
 	void JitCompilerX86::h_CBRANCH(const Instruction& instr, int i) {
-		const auto reg = instr.dst % RegistersCount;
-		const int target = registerModifiedAt[reg] + 1;
-		if (target <= prevFloatOpAt) {
+		const auto dst = instr.dst % RegistersCount;
+		int branchDestinationAt = registerModifiedAt[dst] + 1;
+#ifdef ENABLE_EXPERIMENTAL
+		// If the branch destination is the last rounding operation, and the rounding source
+		// register hasn't been modified, then we can bump up the branch point because the
+		// rounding operation will be a no-op.
+		if (branchDestinationAt == prevRoundModeAt &&
+			prevRoundReg != dst &&
+			registerModifiedAt[prevRoundReg] < prevRoundModeAt) {
+			branchDestinationAt++;
+			// more like "possibly elided" since it's elided only if branch happens?
+			instructionsElided++;
+		}
+		if (branchDestinationAt <= prevFloatOpAt) {
 			prevRoundModeAt = -1;
 		}
+#endif
+		// mark all registers as having been modified. note that even if we could predict in some
+		// cases that some registers would not be modified due to the branch, we can't change this
+		// logic without affecting the hash computation.
+		std::fill(registerModifiedAt, registerModifiedAt + RegistersCount, i);
+
 		emit(REX_ADD_I);
-		emitByte(0xc0 + reg);
+		emitByte(0xc0 + dst);
 		const int shift = instr.getModCond() + ConditionOffset;
 		uint32_t imm = instr.getImm32() | (1UL << shift);
 		if (ConditionOffset > 0 || shift > 0)
 			imm &= ~(1UL << (shift - 1));
 		emit32(imm);
 		emit(REX_TEST);
-		emitByte(0xc0 + reg);
+		emitByte(0xc0 + dst);
 		emit32(ConditionMask << shift);
-		emit(JZ);
-		emit32(instructionOffsets[target] - (codePos + 4));
-		// mark all registers as having been modified. note that even if we could predict in some
-		// cases that some registers would not be modified due to the branch, we can't change this
-		// logic without affecting the hash computation.
-		std::fill(registerModifiedAt, registerModifiedAt + RegistersCount, i);
+		const auto offset = instructionOffsets[branchDestinationAt] - codePos - 2;
+		if (offset >= -128) {
+			emitByte(SHORT_JZ);
+			emitByte(offset);
+		} else {
+			emit(JZ);
+			emit32(offset - 4);
+		}
 	}
 
 	void JitCompilerX86::h_ISTORE(const Instruction& instr, int i) {
