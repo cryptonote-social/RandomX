@@ -7,15 +7,24 @@
 
 #include <stdint.h>
 
+// RandomX includes
 #include "randomx.h"
-#include "checkhash.h"
+#include "virtual_machine.hpp"
 #include "dataset.hpp"
+
+#include "checkhash.h"
 
 static randomx_dataset* dataset = nullptr;
 
 static std::vector<randomx_vm*> vm;
 
 static std::atomic<uint32_t> atomic_nonce(1);
+
+void set_experimental(bool exp) {
+  for (randomx_vm* machine : vm) {
+	machine->setExperimental(exp);
+  }
+}
 
 // only call when all existing threads are stopped
 extern "C" int rx_add_thread() {
@@ -121,6 +130,14 @@ extern "C" int init_rxlib(int threads) {
   return hugepages_success ? 1 : 2;
 }
 
+
+uint64_t do_one_hash(char* blob, uint32_t len, uint32_t nonce, int vm_index, char* hash_output) {
+  void* noncePtr = blob + 39;
+  store32(noncePtr, nonce);
+
+  randomx_calculate_hash(vm[vm_index], blob, len, hash_output);
+}
+
 int64_t do_hashing(randomx_vm* vm, char* blob, uint32_t len, uint64_t difficulty, char* hash_output, char* nonce_output, std::atomic<uint32_t> *stop) {
   void* noncePtr = blob + 39;
   int64_t hashes = 0;
@@ -131,13 +148,7 @@ int64_t do_hashing(randomx_vm* vm, char* blob, uint32_t len, uint64_t difficulty
 
   randomx_calculate_hash_first(vm, blob, len);
 
-  while (true) {
-    auto s = stop->load();
-    if (s) {
-      // TODO: If we are not moving on to a fresh job we might want to check the state of the last
-      // hash before returning just in case it meets difficulty?  This would probably be very rare.
-      return -hashes;
-    }
+  do {
     prevnonce = nonce;
     nonce = atomic_nonce.fetch_add(1);
 	store32(noncePtr, nonce);
@@ -149,7 +160,16 @@ int64_t do_hashing(randomx_vm* vm, char* blob, uint32_t len, uint64_t difficulty
       store32(nonce_output, prevnonce);
       return hashes;
     }
+  } while (!stop->load());
+
+  randomx_calculate_hash_last(vm, hash_output);
+
+  hashes++;
+  if (check_hash_64(hash_output, difficulty)) {
+    store32(nonce_output, nonce);
+    return hashes;
   }
+  return -hashes;
 }
 
 extern "C" int64_t rx_hash_until(const char* blob, uint32_t len, uint64_t difficulty, int thread, char* hash_output, char* nonce_output, uint32_t* stopper) {
