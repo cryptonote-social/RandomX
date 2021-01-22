@@ -157,7 +157,6 @@ namespace randomx {
 	static const uint8_t ADD_RDX_R[] = { 0x4c, 0x01 };
 	static const uint8_t SUB_RDX_R[] = { 0x4c, 0x29 };
 	static const uint8_t SAR_RDX_I8[] = { 0x48, 0xC1, 0xFA };
-	static const uint8_t TEST_RDX_RDX[] = { 0x48, 0x85, 0xD2 };
 	static const uint8_t REX_NEG[] = { 0x49, 0xF7 };
 	static const uint8_t REX_XOR_RR[] = { 0x4D, 0x33 };
 	static const uint8_t REX_XOR_RI[] = { 0x49, 0x81 };
@@ -166,16 +165,11 @@ namespace randomx {
 	static const uint8_t REX_ROT_I8[] = { 0x49, 0xc1 };
 	static const uint8_t SHUFPD[] = { 0x66, 0x0f, 0xc6 };
 	static const uint8_t REX_ADDPD[] = { 0x66, 0x41, 0x0f, 0x58 };
-	static const uint8_t REX_CVTDQ2PD_XMM12[] = { 0xf3, 0x44, 0x0f, 0xe6, 0x24, 0x06 };
 	static const uint8_t REX_SUBPD[] = { 0x66, 0x41, 0x0f, 0x5c };
 	static const uint8_t REX_XORPS[] = { 0x41, 0x0f, 0x57 };
 	static const uint8_t REX_MULPD[] = { 0x66, 0x41, 0x0f, 0x59 };
 	static const uint8_t REX_MAXPD[] = { 0x66, 0x41, 0x0f, 0x5f };
 	static const uint8_t SQRTPD[] = { 0x66, 0x0f, 0x51 };
-	static const uint8_t AND_OR_MOV_LDMXCSR[] = {
-		0x25, 0x00, 0x60, 0x00, 0x00, 0x0D, 0xC0, 0x9F, 0x00, 0x00,
-		0x50, 0x0F, 0xAE, 0x14, 0x24, 0x58
-	};
 	static const uint8_t ROL_RAX[] = { 0x48, 0xc1, 0xc0 };
 	static const uint8_t XOR_ECX_ECX[] = { 0x33, 0xC9 };
 	static const uint8_t REX_CMP_R32I[] = { 0x41, 0x81 };
@@ -187,12 +181,7 @@ namespace randomx {
 	static const uint8_t JMP = 0xe9;
 	static const uint8_t REX_XOR_RAX_R64[] = { 0x49, 0x33 };
 	static const uint8_t REX_XCHG[] = { 0x4d, 0x87 };
-	static const uint8_t REX_ANDPS_XMM12_DIVPD[] = {
-		0x45, 0x0F, 0x54, 0xE5, 0x45, 0x0F, 0x56, 0xE6,
-		0x66, 0x41, 0x0f, 0x5e
-	};
 	static const uint8_t REX_PADD[] = { 0x66, 0x44, 0x0f };
-	static const uint8_t PADD_OPCODES[] = { 0xfc, 0xfd, 0xfe, 0xd4 };
 	static const uint8_t CALL = 0xe8;
 	static const uint8_t REX_ADD_I[] = { 0x49, 0x81 };
 	static const uint8_t REX_TEST[] = { 0x49, 0xF7 };
@@ -215,7 +204,10 @@ namespace randomx {
 
 	static const uint8_t* NOPX[] = { NOP1, NOP2, NOP3, NOP4, NOP5, NOP6, NOP7, NOP8, NOP9 };
 
-	size_t JitCompilerX86::getCodeSize() const {
+	// maps ModMem values to the appropriate scratchpad mask to emit
+	static uint32_t ScratchpadMask[] = { ScratchpadL2Mask, ScratchpadL1Mask, ScratchpadL1Mask, ScratchpadL1Mask };
+
+	inline size_t JitCompilerX86::getCodeSize() const {
 		return CodeSize;
 	}
 
@@ -447,20 +439,22 @@ namespace randomx {
 		}
 		emit32(instr.getImm32());
 		emitByte(AND_EAX_I);
-		emit32(instr.getModMem() ? ScratchpadL1Mask : ScratchpadL2Mask);
+		emit32(ScratchpadMask[instr.getModMem()]);
 	}
 
 	void JitCompilerX86::h_IADD_RS(const Instruction& instr, int i) {
 		const auto dst = instr.dst % RegistersCount;
 		registerModifiedAt[dst] = i;
 		emit(REX_LEA);
-		if (dst == RegisterNeedsDisplacement)
+		if (dst == RegisterNeedsDisplacement) {
 			emitByte(0xac);
-		else
-			emitByte(0x04 + 8 * dst);
-		genSIB(instr.getModShift(), instr.src % RegistersCount, dst);
-		if (dst == RegisterNeedsDisplacement)
+			genSIB(instr.getModShift(), instr.src % RegistersCount, dst);
 			emit32(instr.getImm32());
+		}
+		else {
+			emitByte(0x04 + 8 * dst);
+			genSIB(instr.getModShift(), instr.src % RegistersCount, dst);
+		}
 	}
 
 	void JitCompilerX86::h_IADD_M(const Instruction& instr, int i) {
@@ -567,7 +561,7 @@ namespace randomx {
 			}
 			emit32(instr.getImm32());
 			emit(AND_ECX_I);
-			emit32(instr.getModMem() ? ScratchpadL1Mask : ScratchpadL2Mask);
+			emit32(ScratchpadMask[instr.getModMem()]);
 			emit(REX_MOV_RR64);
 			emitByte(0xc0 + dst);
 			emit(REX_IMUL_MEM);
@@ -609,7 +603,7 @@ namespace randomx {
 			}
 			emit32(instr.getImm32());
 			emit(AND_ECX_I);
-			emit32(instr.getModMem() ? ScratchpadL1Mask : ScratchpadL2Mask);
+			emit32(ScratchpadMask[instr.getModMem()]);
 			emit(REX_MOV_RR64);
 			emitByte(0xc0 + dst);
 			emit(REX_IMUL_MEM);
@@ -755,8 +749,11 @@ namespace randomx {
 		prevFloatOpAt = i;
 #endif
 		genAddressRegRax(instr, instr.src % RegistersCount);
-		emit(REX_CVTDQ2PD_XMM12);
-		emit(REX_ADDPD);
+		static const uint8_t REX_CVTDQ2PD_XMM12_ADDPD[] = {
+			0xf3, 0x44, 0x0f, 0xe6, 0x24, 0x06,
+			0x66, 0x41, 0x0f, 0x58
+		};
+		emit(REX_CVTDQ2PD_XMM12_ADDPD);
 		emitByte(0xc4 + 8 * (instr.dst % RegisterCountFlt));
 	}
 
@@ -773,8 +770,11 @@ namespace randomx {
 		prevFloatOpAt = i;
 #endif
 		genAddressRegRax(instr, instr.src % RegistersCount);
-		emit(REX_CVTDQ2PD_XMM12);
-		emit(REX_SUBPD);
+		static const uint8_t REX_CVTDQ2PD_XMM12_SUBPD[] = {
+			0xf3, 0x44, 0x0f, 0xe6, 0x24, 0x06,
+			0x66, 0x41, 0x0f, 0x5c
+		};
+		emit(REX_CVTDQ2PD_XMM12_SUBPD);
 		emitByte(0xc4 + 8 * (instr.dst % RegisterCountFlt));
 	}
 
@@ -796,8 +796,12 @@ namespace randomx {
 		prevFloatOpAt = i;
 #endif
 		genAddressRegRax(instr, instr.src % RegistersCount);
-		emit(REX_CVTDQ2PD_XMM12);
-		emit(REX_ANDPS_XMM12_DIVPD);
+		static const uint8_t REX_CVTDQ2PD_XMM12_ANDPS_XMM12_DIVPD[] = {
+			0xf3, 0x44, 0x0f, 0xe6, 0x24, 0x06,
+			0x45, 0x0F, 0x54, 0xE5, 0x45, 0x0F, 0x56, 0xE6,
+			0x66, 0x41, 0x0f, 0x5e
+		};
+		emit(REX_CVTDQ2PD_XMM12_ANDPS_XMM12_DIVPD);
 		emitByte(0xe4 + 8 * (instr.dst % RegisterCountFlt));
 	}
 
@@ -837,6 +841,10 @@ namespace randomx {
 			emit(NOP4); // keeps the compilation length fixed to 23 bytes to simplify eliding.
 		}
 #endif
+		static const uint8_t AND_OR_MOV_LDMXCSR[] = {
+			0x25, 0x00, 0x60, 0x00, 0x00, 0x0D, 0xC0, 0x9F, 0x00, 0x00,
+			0x50, 0x0F, 0xAE, 0x14, 0x24, 0x58
+		};
 		emit(AND_OR_MOV_LDMXCSR);
 	}
 
@@ -893,7 +901,7 @@ namespace randomx {
 		emit32(instr.getImm32());
 		emitByte(AND_EAX_I);
 		if (instr.getModCond() < StoreL3Condition) {
-			emit32(instr.getModMem() ? ScratchpadL1Mask : ScratchpadL2Mask);
+			emit32(ScratchpadMask[instr.getModMem()]);
 		}
 		else {
 			emit32(ScratchpadL3Mask);
