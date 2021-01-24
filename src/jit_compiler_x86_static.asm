@@ -31,7 +31,7 @@ _RANDOMX_JITX86_STATIC SEGMENT PAGE READ EXECUTE
 PUBLIC randomx_prefetch_scratchpad
 PUBLIC randomx_prefetch_scratchpad_end
 PUBLIC randomx_program_prologue
-PUBLIC randomx_program_prologue_first_load
+PUBLIC randomx_program_xmm_constants
 PUBLIC randomx_program_loop_begin
 PUBLIC randomx_program_loop_load
 PUBLIC randomx_program_start
@@ -78,8 +78,6 @@ randomx_program_prologue PROC
 randomx_program_prologue ENDP
 
 randomx_program_prologue_first_load PROC
-	xor rax, r8
-	xor rax, r8
 	mov rdx, rax
 	and eax, RANDOMX_SCRATCHPAD_MASK
 	ror rdx, 32
@@ -88,7 +86,9 @@ randomx_program_prologue_first_load PROC
 randomx_program_prologue_first_load ENDP
 
 ALIGN 64
+randomx_program_xmm_constants PROC
 	include asm/program_xmm_constants.inc
+randomx_program_xmm_constants ENDP
 
 ALIGN 64
 randomx_program_loop_begin PROC

@@ -124,6 +124,7 @@ namespace randomx {
 	const int32_t codeSshPrefetchSize = codeShhEnd - codeShhPrefetch;
 	const int32_t codeSshInitSize = codeProgramEnd - codeShhInit;
 
+	const int32_t xmmConstantsOffset = (uint8_t*)&randomx_program_xmm_constants - codePrologue;
 	const int32_t epilogueOffset = CodeSize - epilogueSize;
 
 	static const uint8_t REX_ADD_RM[] = { 0x4c, 0x03 };
@@ -305,11 +306,10 @@ namespace randomx {
 		prevRoundModeAt = -1;
 		prevFloatOpAt = -1;
 #endif
-		codePos = code + (((uint8_t*)randomx_program_prologue_first_load) - ((uint8_t* const)randomx_program_prologue));
-		*(codePos + sizeof(REX_XOR_RAX_R64)) = 0xc0 + pcfg.readReg0;
-		*(codePos + sizeof(REX_XOR_RAX_R64) * 2 + 1) = 0xc0 + pcfg.readReg1;
 
-		memcpy(code + prologueSize - 48, &pcfg.eMask, sizeof(pcfg.eMask));
+		// initialize Group E register masks in xmm_constants with quadwords 14 & 15
+		memcpy(code + xmmConstantsOffset + 16, &pcfg.eMask, sizeof(pcfg.eMask));
+
 		codePos = code + prologueSize + loopLoadSize;
 		for (int i = 0; i < prog.getSize(); ++i) {
 			generateCode(prog(i), i);
