@@ -176,7 +176,6 @@ namespace randomx {
 	static const uint8_t REX_CMP_R32I[] = { 0x41, 0x81 };
 	static const uint8_t REX_CMP_M32I[] = { 0x81, 0x3c, 0x06 };
 	static const uint8_t MOVAPD[] = { 0x66, 0x0f, 0x29 };
-	static const uint8_t REX_MOV_MR[] = { 0x4c, 0x89 };
 	static const uint8_t REX_XOR_EAX[] = { 0x41, 0x33 };
 	static const uint8_t SUB_EBX_JNZ[] = { 0x83, 0xEB, 0x01, 0x0f, 0x85 };
 	static const uint8_t JMP = 0xe9;
@@ -302,15 +301,16 @@ namespace randomx {
 
 	void JitCompilerX86::generateProgramPrologue(const Program& prog, const ProgramConfiguration& pcfg) {
 		std::fill(registerModifiedAt, registerModifiedAt + RegistersCount, -1);
+		lastBranchAt = -1;
 #ifdef ENABLE_EXPERIMENTAL
 		prevRoundModeAt = -1;
 		prevFloatOpAt = -1;
 #endif
-
 		// initialize Group E register masks in xmm_constants with quadwords 14 & 15
 		memcpy(code + xmmConstantsOffset + 16, &pcfg.eMask, sizeof(pcfg.eMask));
 
 		codePos = code + prologueSize + loopLoadSize;
+
 		for (int i = 0; i < prog.getSize(); ++i) {
 			generateCode(prog(i), i);
 		}
@@ -850,7 +850,13 @@ namespace randomx {
 
 	void JitCompilerX86::h_CBRANCH(const Instruction& instr, int i) {
 		const auto dst = instr.dst % RegistersCount;
-		int branchDestinationAt = registerModifiedAt[dst] + 1;
+		int branchDestinationAt = registerModifiedAt[dst];
+		if (branchDestinationAt < lastBranchAt) {
+			branchDestinationAt = lastBranchAt + 1;
+		} else {
+			branchDestinationAt++;
+		}
+		lastBranchAt = i;
 #ifdef ENABLE_EXPERIMENTAL
 		// If the branch destination is the last rounding operation, and the rounding source
 		// register hasn't been modified, then we can bump up the branch point because the
@@ -866,11 +872,6 @@ namespace randomx {
 			prevRoundModeAt = -1;
 		}
 #endif
-		// mark all registers as having been modified. note that even if we could predict in some
-		// cases that some registers would not be modified due to the branch, we can't change this
-		// logic without affecting the hash computation.
-		std::fill(registerModifiedAt, registerModifiedAt + RegistersCount, i);
-
 		emit(REX_ADD_I);
 		emitByte(0xc0 + dst);
 		const int shift = instr.getModCond() + ConditionOffset;
@@ -906,6 +907,7 @@ namespace randomx {
 		else {
 			emit32(ScratchpadL3Mask);
 		}
+		static const uint8_t REX_MOV_MR[] = { 0x4c, 0x89 };
 		emit(REX_MOV_MR);
 		emitByte(0x04 + 8 * (instr.src % RegistersCount));
 		emitByte(0x06);

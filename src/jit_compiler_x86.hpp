@@ -83,6 +83,7 @@ namespace randomx {
 		static const InstructionGeneratorX86 engine[256];
 		uint8_t* instructionOffsets[RANDOMX_PROGRAM_SIZE];
 		int registerModifiedAt[RegistersCount];
+		int lastBranchAt;
 
 #ifdef ENABLE_EXPERIMENTAL
 		int prevRoundModeAt;
