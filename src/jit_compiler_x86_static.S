@@ -37,8 +37,6 @@
 #define WINABI
 #endif
 
-.global DECL(randomx_prefetch_scratchpad)
-.global DECL(randomx_prefetch_scratchpad_end)
 .global DECL(randomx_program_prologue)
 .global DECL(randomx_program_xmm_constants)
 .global DECL(randomx_program_loop_begin)
@@ -68,16 +66,6 @@
 
 #define db .byte
 
-DECL(randomx_prefetch_scratchpad):
-	mov rdx, rax
-	and eax, RANDOMX_SCRATCHPAD_MASK
-	prefetcht0 [rsi+rax]
-	ror rdx, 32
-	and edx, RANDOMX_SCRATCHPAD_MASK
-	prefetcht0 [rsi+rdx]
-
-DECL(randomx_prefetch_scratchpad_end):
-
 .balign 64
 DECL(randomx_program_prologue):
 #if defined(WINABI)
@@ -85,28 +73,49 @@ DECL(randomx_program_prologue):
 #else
 	#include "asm/program_prologue_linux.inc"
 #endif
+	;# note: we do the dataset prefetch for first iteration in vm_compiled.cpp
+	;# initialize spAddr0 & spAddr1, & do scratchpad prefetch for first iteration
+	mov rax, rbp
+	mov rdx, rax
+	and eax, RANDOMX_SCRATCHPAD_MASK
+	prefetcht0 [rsi+rax]
+	ror rdx, 32
+	and edx, RANDOMX_SCRATCHPAD_MASK
+	prefetcht0 [rsi+rdx]
+	;# zero integer registers
+	xor r8, r8
+	xor r9, r9
+	xor r10, r10
+	xor r11, r11
+	xor r12, r12
+	xor r13, r13
+	xor r14, r14
+	xor r15, r15
+	;# load constant registers
+	lea rcx, [rcx+120]
+	movapd xmm8, xmmword ptr [rcx+72]
+	movapd xmm9, xmmword ptr [rcx+88]
+	movapd xmm10, xmmword ptr [rcx+104]
+	movapd xmm11, xmmword ptr [rcx+120]
+	;# initialize group E register masks
 	movapd xmm13, xmmword ptr [mantissaMask+rip]
 	movapd xmm14, xmmword ptr [exp240+rip]
 	movapd xmm15, xmmword ptr [scaleMask+rip]
-	mov rdx, rax
-	and eax, RANDOMX_SCRATCHPAD_MASK
-	ror rdx, 32
-	and edx, RANDOMX_SCRATCHPAD_MASK
-	jmp DECL(randomx_program_loop_begin)
+	;# allocate 16 bytes on stack for mxcsr masks, and 16 bytes for spaddr0 (+16) & spaddr1 (+24)
+	lea rsp, [rsp-32]
+	mov dword ptr [rsp], 0x9FC0 ;# mxcsr masks
+	mov dword ptr [rsp+4], 0xBFC0
+	mov dword ptr [rsp+8], 0xDFC0
+	mov dword ptr [rsp+12], 0xFFC0
+	jmp DECL(randomx_program_loop_load)
 
-.balign 64
+.balign 16
 DECL(randomx_program_xmm_constants):
 	#include "asm/program_xmm_constants.inc"
 
 .balign 64
-DECL(randomx_program_loop_begin):
-	nop
-
 DECL(randomx_program_loop_load):
 	#include "asm/program_loop_load.inc"
-
-DECL(randomx_program_start):
-	nop
 
 DECL(randomx_program_read_dataset):
 	#include "asm/program_read_dataset.inc"

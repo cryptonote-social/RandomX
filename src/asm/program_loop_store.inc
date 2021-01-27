@@ -1,4 +1,10 @@
-	pop rcx
+	mov rdx, rax ;# Computes next spAddr0 (rax) and spAddr1 (rdx)
+	and eax, RANDOMX_SCRATCHPAD_MASK
+	prefetcht0 [rsi+rax]
+	ror rdx, 32
+	and edx, RANDOMX_SCRATCHPAD_MASK
+	prefetcht0 [rsi+rdx]
+	mov rcx, [rsp+24] ;# Load previous spAddr1
 	mov qword ptr [rcx+0], r8
 	mov qword ptr [rcx+8], r9
 	mov qword ptr [rcx+16], r10
@@ -7,7 +13,7 @@
 	mov qword ptr [rcx+40], r13
 	mov qword ptr [rcx+48], r14
 	mov qword ptr [rcx+56], r15
-	pop rcx
+	mov rcx, [rsp+16] ;# Load previous spAddr0
 	xorpd xmm0, xmm4
 	xorpd xmm1, xmm5
 	xorpd xmm2, xmm6

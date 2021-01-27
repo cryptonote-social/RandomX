@@ -1,3 +1,4 @@
+	add rsp, 32 ;# pop off the mxcsr + spAddr bytes
 	;# save VM register values
 	pop rcx
 	mov qword ptr [rcx+0], r8

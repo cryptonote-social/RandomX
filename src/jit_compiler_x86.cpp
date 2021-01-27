@@ -96,9 +96,9 @@ namespace randomx {
 	constexpr int32_t superScalarHashOffset = RandomXCodeSize;
 
 	const uint8_t* codePrologue = (uint8_t*)&randomx_program_prologue;
-	const uint8_t* codeLoopBegin = (uint8_t*)&randomx_program_loop_begin;
+	const uint8_t* codeLoopBegin = (uint8_t*)&randomx_program_loop_load;
 	const uint8_t* codeLoopLoad = (uint8_t*)&randomx_program_loop_load;
-	const uint8_t* codeProgamStart = (uint8_t*)&randomx_program_start;
+	const uint8_t* codeProgramStart = (uint8_t*)&randomx_program_read_dataset;
 	const uint8_t* codeReadDataset = (uint8_t*)&randomx_program_read_dataset;
 	const uint8_t* codeReadDatasetLightSshInit = (uint8_t*)&randomx_program_read_dataset_sshash_init;
 	const uint8_t* codeReadDatasetLightSshFin = (uint8_t*)&randomx_program_read_dataset_sshash_fin;
@@ -113,7 +113,7 @@ namespace randomx {
 	const uint8_t* codeShhInit = (uint8_t*)&randomx_sshash_init;
 
 	const int32_t prologueSize = codeLoopBegin - codePrologue;
-	const int32_t loopLoadSize = codeProgamStart - codeLoopLoad;
+	const int32_t loopLoadSize = codeProgramStart - codeLoopLoad;
 	const int32_t readDatasetSize = codeReadDatasetLightSshInit - codeReadDataset;
 	const int32_t readDatasetLightInitSize = codeReadDatasetLightSshFin - codeReadDatasetLightSshInit;
 	const int32_t readDatasetLightFinSize = codeLoopStore - codeReadDatasetLightSshFin;
@@ -321,14 +321,11 @@ namespace randomx {
 	}
 
 	void JitCompilerX86::generateProgramEpilogue(const Program& prog, const ProgramConfiguration& pcfg) {
+		// XOR of registers readReg0 and readReg1 (step 1 of sec. 4.6.2)
 		emit(REX_MOV_RR64);
 		emitByte(0xc0 + pcfg.readReg0);
 		emit(REX_XOR_RAX_R64);
 		emitByte(0xc0 + pcfg.readReg1);
-		emit(
-			(const uint8_t*)&randomx_prefetch_scratchpad,
-			((uint8_t*)&randomx_prefetch_scratchpad_end) - ((uint8_t*)&randomx_prefetch_scratchpad)
-		);
 		memcpy(codePos, codeLoopStore, loopStoreSize);
 		codePos += loopStoreSize;
 		emit(SUB_EBX_JNZ);
@@ -828,24 +825,19 @@ namespace randomx {
 		prevRoundModeAt = i;
 		prevRoundReg = src;
 #endif
+
 		emit(REX_MOV_RR64);
 		emitByte(0xc0 + src);
-		// The number 13 below is due to the bits of interest in MXCSR register being at offset 13
-		const int rotate = (13 - (instr.getImm32() & 63)) & 63;
+		const int rotate = (static_cast<int>(instr.getImm32() & 63) - 2) & 63;
 		if (rotate != 0) {
-			emit(ROL_RAX);
+			static const uint8_t ROR_RAX[] = { 0x48, 0xc1, 0xc8 };
+			emit(ROR_RAX);
 			emitByte(rotate);
 		}
-#ifdef ENABLE_EXPERIMENTAL
-		else  {
-			emit(NOP4); // keeps the compilation length fixed to 23 bytes to simplify eliding.
-		}
-#endif
-		static const uint8_t AND_OR_MOV_LDMXCSR[] = {
-			0x25, 0x00, 0x60, 0x00, 0x00, 0x0D, 0xC0, 0x9F, 0x00, 0x00,
-			0x50, 0x0F, 0xAE, 0x14, 0x24, 0x58
+		static const uint8_t AND_LDMXCSR[] = {
+			0x83, 0xe0, 0x0c, 0x0f, 0xae, 0x14, 0x04
 		};
-		emit(AND_OR_MOV_LDMXCSR);
+		emit(AND_LDMXCSR);
 	}
 
 	void JitCompilerX86::h_CBRANCH(const Instruction& instr, int i) {

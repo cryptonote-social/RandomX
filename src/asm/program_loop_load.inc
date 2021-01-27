@@ -1,5 +1,5 @@
-	lea rcx, [rsi+rax]
-	push rcx
+	lea rcx, [rsi+rax] ;# initialize registers from scratchpad at offset given by spAddr0 (rax)
+	mov [rsp+16], rcx ;# save spaddr0 on stack
 	xor r8,  qword ptr [rcx+0]
 	xor r9,  qword ptr [rcx+8]
 	xor r10, qword ptr [rcx+16]
@@ -8,8 +8,8 @@
 	xor r13, qword ptr [rcx+40]
 	xor r14, qword ptr [rcx+48]
 	xor r15, qword ptr [rcx+56]
-	lea rcx, [rsi+rdx]
-	push rcx
+	lea rcx, [rsi+rdx] ;# initialize fp registers from scratchpad at offset given by spAddr1 (rdx)
+	mov [rsp+24], rcx ;# save spaddr1 on stack
 	cvtdq2pd xmm0, qword ptr [rcx+0]
 	cvtdq2pd xmm1, qword ptr [rcx+8]
 	cvtdq2pd xmm2, qword ptr [rcx+16]
