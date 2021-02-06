@@ -95,7 +95,22 @@ void* allocMemoryPages(std::size_t bytes) {
 	if (mem == nullptr)
 		throw std::runtime_error(getErrorMessage("allocMemoryPages - VirtualAlloc"));
 #else
-	mem = mmap(nullptr, bytes, PAGE_READWRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+	#if defined(__NetBSD__)
+		#define RESERVED_FLAGS PROT_MPROTECT(PROT_EXEC)
+	#else
+		#define RESERVED_FLAGS 0
+	#endif
+	#ifdef __APPLE__
+		#include <TargetConditionals.h>
+		#ifdef TARGET_OS_OSX
+			#define MEXTRA MAP_JIT
+		#else
+			#define MEXTRA 0
+		#endif
+	#else
+		#define MEXTRA 0
+	#endif
+	mem = mmap(nullptr, bytes, PAGE_READWRITE | RESERVED_FLAGS, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 	if (mem == MAP_FAILED)
 		throw std::runtime_error("allocMemoryPages - mmap failed");
 #endif
