@@ -31,6 +31,9 @@ extern "C" int rx_add_thread() {
   randomx_flags flags, hugepages_flags;
   flags = RANDOMX_FLAG_DEFAULT | RANDOMX_FLAG_HARD_AES | RANDOMX_FLAG_JIT | RANDOMX_FLAG_FULL_MEM;
   flags |= randomx_get_flags();
+#ifdef M1
+  flags |= RANDOMX_FLAG_SECURE;
+#endif
   hugepages_flags = flags | RANDOMX_FLAG_LARGE_PAGES;
 
   auto v = randomx_create_vm(hugepages_flags, nullptr, dataset);
@@ -60,6 +63,9 @@ extern "C" int rx_remove_thread() {
 extern "C" bool seed_rxlib(const char* seed_hash, uint32_t len, int init_threads) {
   randomx_flags flags =
     RANDOMX_FLAG_DEFAULT | RANDOMX_FLAG_HARD_AES | RANDOMX_FLAG_JIT | RANDOMX_FLAG_FULL_MEM | randomx_get_flags();
+#ifdef M1
+  flags |= RANDOMX_FLAG_SECURE;
+#endif
   randomx_cache* cache = randomx_alloc_cache(flags);  
   if (cache == nullptr) {
     std::cerr << "# rxlib: Failed to allocate rx cache" << std::endl;
@@ -93,6 +99,9 @@ extern "C" bool seed_rxlib(const char* seed_hash, uint32_t len, int init_threads
 extern "C" int init_rxlib(int threads) {
   randomx_flags flags =
     RANDOMX_FLAG_DEFAULT | RANDOMX_FLAG_HARD_AES | RANDOMX_FLAG_JIT | RANDOMX_FLAG_FULL_MEM | randomx_get_flags();
+#ifdef M1
+  flags |= RANDOMX_FLAG_SECURE;
+#endif
   randomx_flags hugepages_flags = flags | RANDOMX_FLAG_LARGE_PAGES;
 
   bool hugepages_success = false;
