@@ -76,6 +76,7 @@ DECL(randomx_program_prologue):
 	;# note: we do the dataset prefetch for first iteration in vm_compiled.cpp
 	;# initialize spAddr0 & spAddr1, & do scratchpad prefetch for first iteration
 	mov rax, rbp
+	ror rbp, 32
 	mov rdx, rax
 	and eax, RANDOMX_SCRATCHPAD_MASK
 	prefetcht0 [rsi+rax]
